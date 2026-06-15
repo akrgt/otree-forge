@@ -43,6 +43,18 @@ def env_ready():
     return otree_exe() is not None
 
 
+def _child_env():
+    """子プロセス用の環境．oTreeは自分自身を `Popen(['otree', ...])`
+    （絶対パスでない）で再起動するため，venvの bin を PATH 先頭に通しておく．
+    """
+    env = os.environ.copy()
+    bin_dir = _bin_dir()
+    if bin_dir.exists():
+        env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+        env["VIRTUAL_ENV"] = str(ENV_DIR)
+    return env
+
+
 def setup_env(timeout=900):
     """専用venvを作成して oTree をインストールする（初回のみ・数分かかる）．
 
@@ -91,6 +103,7 @@ def run_test(project_dir, config_name, timeout=300, export_dir=None):
     try:
         r = subprocess.run(
             cmd, cwd=project_dir, capture_output=True, text=True, timeout=timeout,
+            env=_child_env(),
         )
         ok = r.returncode == 0 and "Bots completed session" in (r.stdout + r.stderr)
         log = (r.stdout + "\n" + r.stderr).strip().splitlines()
@@ -139,7 +152,7 @@ def start_devserver(project_dir, port=8503):
     proc = subprocess.Popen(
         [exe, "devserver", str(port)],
         cwd=project_dir, stdout=log, stderr=subprocess.STDOUT,
-        start_new_session=True,
+        start_new_session=True, env=_child_env(),
     )
     DEMO_STATE.write_text(
         json.dumps({"pid": proc.pid, "dir": str(project_dir)}), encoding="utf-8")
