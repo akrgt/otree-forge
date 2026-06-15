@@ -1,0 +1,84 @@
+{
+  "esl_version": "0.1",
+  "meta": {
+    "name": "dictator_demo",
+    "display_name": "独裁者ゲーム（ESL縦切りPoC）",
+    "author": "forge",
+    "doc": "ESL v0.1 の縦切り検証用．独裁者が初期保有の分配を決定し，受け手は受動的に受け取る．"
+  },
+  "session": {
+    "config_name": "dictator",
+    "display_name": "独裁者ゲーム",
+    "app_sequence": ["dictator"],
+    "num_demo_participants": 2,
+    "real_world_currency_per_point": 1.0,
+    "participation_fee": 0.0,
+    "language_code": "ja",
+    "currency_code": "JPY",
+    "use_points": true
+  },
+  "apps": [
+    {
+      "name": "dictator",
+      "doc": "独裁者ゲーム：プレイヤー1（独裁者）が C.ENDOWMENT の分配を一方的に決定する．",
+      "constants": {
+        "players_per_group": 2,
+        "num_rounds": 1,
+        "extra": [
+          { "name": "ENDOWMENT", "type": "currency", "value": 1000 }
+        ]
+      },
+      "models": {
+        "subsession": [],
+        "group": [
+          {
+            "name": "kept",
+            "type": "currency",
+            "label": "あなたは自分の手元に何ポイント残しますか？",
+            "doc": "独裁者が手元に残す額",
+            "min": 0,
+            "max": "C.ENDOWMENT",
+            "test_value": 700
+          }
+        ],
+        "player": []
+      },
+      "logic": [
+        {
+          "name": "set_payoffs",
+          "level": "group",
+          "body": "p1, p2 = group.get_players()\np1.payoff = group.kept\np2.payoff = C.ENDOWMENT - group.kept"
+        }
+      ],
+      "pages": [
+        {
+          "name": "Introduction",
+          "kind": "info",
+          "title": "実験の説明",
+          "body": "<p>この実験では，2人が1組になります．あなたの組には <b>{{ C.ENDOWMENT }}</b> が与えられます．</p>\n<p>プレイヤー1がこの分配を決定し，プレイヤー2はその結果を受け取ります．</p>"
+        },
+        {
+          "name": "Offer",
+          "kind": "form",
+          "form_model": "group",
+          "form_fields": ["kept"],
+          "display_if": "player.id_in_group == 1",
+          "title": "分配の決定",
+          "body": "<p>あなたは <b>プレイヤー1（決定者）</b> です．{{ C.ENDOWMENT }} のうち，手元に残す額を入力してください．残りは相手に渡されます．</p>"
+        },
+        {
+          "name": "ResultsWaitPage",
+          "kind": "wait",
+          "after_all_players_arrive": "set_payoffs",
+          "body": "相手の決定を待っています…"
+        },
+        {
+          "name": "Results",
+          "kind": "info",
+          "title": "結果",
+          "body": "<p>決定者が手元に残した額：<b>{{ group.kept }}</b></p>\n<p>あなたの利得：<b>{{ player.payoff }}</b></p>"
+        }
+      ]
+    }
+  ]
+}

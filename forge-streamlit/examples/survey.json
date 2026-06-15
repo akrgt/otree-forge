@@ -1,0 +1,191 @@
+{
+  "esl_version": "0.1",
+  "meta": {
+    "name": "survey_demo",
+    "display_name": "アンケート（入力形式の見本）",
+    "doc": "oTreeで使える主な入力形式を1ページに並べた見本：数値欄・ドロップダウン・ラジオ（縦/横）・リッカート尺度・チェックボックス・自由記述．"
+  },
+  "session": {
+    "config_name": "survey",
+    "display_name": "アンケート（入力形式の見本）",
+    "app_sequence": ["survey"],
+    "num_demo_participants": 2,
+    "language_code": "ja",
+    "currency_code": "JPY",
+    "use_points": true
+  },
+  "apps": [
+    {
+      "name": "survey",
+      "doc": "入力形式の見本アンケート．グループ要素はなく，各自が回答して終了する（players_per_group: null＝グループなし）．",
+      "constants": {
+        "players_per_group": null,
+        "num_rounds": 1,
+        "extra": []
+      },
+      "models": {
+        "subsession": [],
+        "group": [],
+        "player": [
+          {
+            "name": "age", "type": "int",
+            "label": "あなたの年齢を入力してください",
+            "doc": "数値入力欄（min/maxつき）",
+            "min": 18, "max": 99, "test_value": 25
+          },
+          {
+            "name": "gender", "type": "str",
+            "label": "性別を選んでください",
+            "doc": "ドロップダウン（choicesのみ指定）",
+            "choices": [["male", "男性"], ["female", "女性"], ["other", "その他"], ["na", "回答しない"]],
+            "test_value": "male"
+          },
+          {
+            "name": "study_field", "type": "str",
+            "label": "専攻分野を選んでください",
+            "doc": "ラジオボタン縦（choices + RadioSelect）",
+            "choices": ["経済学", "心理学", "工学", "その他"],
+            "widget": "RadioSelect",
+            "test_value": "経済学"
+          },
+          {
+            "name": "satisfaction", "type": "int",
+            "label": "本日の実験への満足度を教えてください（1=低い〜5=高い）",
+            "doc": "リッカート尺度（choices + RadioSelectHorizontal）",
+            "choices": [1, 2, 3, 4, 5],
+            "widget": "RadioSelectHorizontal",
+            "test_value": 4
+          },
+          {
+            "name": "risk_attitude", "type": "int",
+            "label": "あなたはどの程度リスクを取りますか（0=全く取らない〜10=積極的に取る）",
+            "doc": "11件法のリッカート尺度",
+            "choices": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            "widget": "RadioSelectHorizontal",
+            "test_value": 5
+          },
+          {
+            "name": "agree_terms", "type": "bool",
+            "label": "データの研究利用に同意します",
+            "doc": "同意チェックボックス（bool + CheckboxInput）",
+            "widget": "CheckboxInput",
+            "test_value": true
+          },
+          {
+            "name": "happiness", "type": "int",
+            "label": "現在の幸福度を教えてください（0〜100）",
+            "doc": "スライダー（JS付き手書きinputとして生成される）",
+            "min": 0, "max": 100, "step": 5, "initial": 50,
+            "widget": "Slider",
+            "test_value": 70
+          },
+          {
+            "name": "comment", "type": "longstr",
+            "label": "実験について気づいた点があれば自由にお書きください",
+            "doc": "自由記述（longstr＝textarea表示）．blankで空欄可",
+            "blank": true,
+            "test_value": "特になし"
+          },
+          {
+            "name": "trust_people", "type": "int",
+            "label": "一般的に，人はどの程度信頼できると思いますか",
+            "doc": "つまみ非表示スライダー（クリックするまで未回答．アンカリング回避）",
+            "min": 0, "max": 100,
+            "left_label": "全く信頼できない", "right_label": "とても信頼できる",
+            "widget": "SliderNoAnchor",
+            "test_value": 60
+          },
+          {
+            "name": "service_rating", "type": "int",
+            "label": "この実験システムの使いやすさを星で評価してください",
+            "doc": "星評価（クリックで選択）",
+            "min": 1, "max": 5,
+            "widget": "StarRating",
+            "test_value": 4
+          },
+          {
+            "name": "q_fair", "type": "int",
+            "label": "私は公平な人間だ",
+            "doc": "リッカート表の1行目",
+            "choices": [[1, "全くそう思わない"], [2, "そう思わない"], [3, "どちらでもない"], [4, "そう思う"], [5, "強くそう思う"]],
+            "widget": "LikertMatrix",
+            "test_value": 3
+          },
+          {
+            "name": "q_kind", "type": "int",
+            "label": "私は親切な人間だ",
+            "doc": "リッカート表の2行目",
+            "choices": [[1, "全くそう思わない"], [2, "そう思わない"], [3, "どちらでもない"], [4, "そう思う"], [5, "強くそう思う"]],
+            "widget": "LikertMatrix",
+            "test_value": 4
+          },
+          {
+            "name": "q_honest", "type": "int",
+            "label": "私は正直な人間だ",
+            "doc": "リッカート表の3行目",
+            "choices": [[1, "全くそう思わない"], [2, "そう思わない"], [3, "どちらでもない"], [4, "そう思う"], [5, "強くそう思う"]],
+            "widget": "LikertMatrix",
+            "test_value": 3
+          },
+          {
+            "name": "num_siblings", "type": "int",
+            "label": "兄弟姉妹の人数",
+            "doc": "数値ステッパー（−/＋ボタン）",
+            "min": 0, "max": 10, "initial": 0,
+            "widget": "NumberStepper",
+            "test_value": 1
+          },
+          {
+            "name": "hobbies", "type": "str",
+            "label": "趣味を全て選んでください（複数選択可）",
+            "doc": "複数選択チェックボックス（カンマ区切りでstr型に保存）",
+            "choices": [["sports", "スポーツ"], ["music", "音楽"], ["reading", "読書"], ["games", "ゲーム"]],
+            "widget": "MultiCheckbox",
+            "test_value": "sports,music"
+          },
+          {
+            "name": "overall_rating", "type": "str",
+            "label": "総合評価を選んでください（押すとそのまま次へ進みます）",
+            "doc": "ボタン選択（submit属性つきボタン．クリックで即送信）",
+            "choices": [["good", "😀 良かった"], ["neutral", "😐 ふつう"], ["bad", "🙁 いまいち"]],
+            "widget": "ButtonSelect",
+            "test_value": "good"
+          }
+        ]
+      },
+      "logic": [],
+      "pages": [
+        {
+          "name": "Questionnaire",
+          "kind": "form",
+          "form_model": "player",
+          "form_fields": ["age", "gender", "study_field", "satisfaction", "risk_attitude", "happiness", "agree_terms", "comment"],
+          "title": "アンケート",
+          "body": "<p>以下の質問にお答えください．入力形式の見本として，数値欄・ドロップダウン・ラジオボタン（縦/横）・スライダー・チェックボックス・自由記述を並べている．</p>"
+        },
+        {
+          "name": "MoreFormats",
+          "kind": "form",
+          "form_model": "player",
+          "form_fields": ["trust_people", "service_rating", "q_fair", "q_kind", "q_honest", "num_siblings", "hobbies"],
+          "title": "追加の入力形式",
+          "body": "<p>つまみ非表示スライダー・星評価・リッカート表・数値ステッパー・複数選択の見本である．</p>"
+        },
+        {
+          "name": "QuickChoice",
+          "kind": "form",
+          "form_model": "player",
+          "form_fields": ["overall_rating"],
+          "title": "ワンクリック回答",
+          "body": "<p>ボタンを押すと回答が送信され，そのまま次のページに進む（「次へ」ボタンは表示されない）．</p>"
+        },
+        {
+          "name": "Thanks",
+          "kind": "info",
+          "title": "回答完了",
+          "body": "<p>ご回答ありがとうございました．</p>"
+        }
+      ]
+    }
+  ]
+}

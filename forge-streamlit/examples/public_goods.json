@@ -1,0 +1,74 @@
+{
+  "esl_version": "0.1",
+  "meta": {
+    "name": "public_goods_demo",
+    "display_name": "公共財ゲーム（3人・3ラウンド）",
+    "doc": "3人組の公共財ゲーム．拠出額の合計がMULTIPLIER倍され全員に等分配される．固定マッチングで3ラウンド繰り返す．"
+  },
+  "session": {
+    "config_name": "public_goods",
+    "display_name": "公共財ゲーム",
+    "app_sequence": ["public_goods"],
+    "num_demo_participants": 3,
+    "language_code": "ja",
+    "currency_code": "JPY",
+    "use_points": true
+  },
+  "apps": [
+    {
+      "name": "public_goods",
+      "doc": "公共財ゲーム：各自が C.ENDOWMENT から拠出し，合計が C.MULTIPLIER 倍されて等分配される．",
+      "constants": {
+        "players_per_group": 3,
+        "num_rounds": 3,
+        "extra": [
+          { "name": "ENDOWMENT", "type": "currency", "value": 1000 },
+          { "name": "MULTIPLIER", "type": "float", "value": 1.6 }
+        ]
+      },
+      "models": {
+        "subsession": [],
+        "group": [
+          { "name": "total_contribution", "type": "currency", "doc": "拠出額の合計" },
+          { "name": "individual_share", "type": "currency", "doc": "一人あたりの分配額" }
+        ],
+        "player": [
+          {
+            "name": "contribution", "type": "currency",
+            "label": "あなたはいくら拠出しますか？",
+            "doc": "公共財への拠出額",
+            "min": 0, "max": "C.ENDOWMENT", "test_value": 300
+          }
+        ]
+      },
+      "logic": [
+        {
+          "name": "set_payoffs", "level": "group",
+          "body": "players = group.get_players()\ngroup.total_contribution = sum(p.contribution for p in players)\ngroup.individual_share = group.total_contribution * C.MULTIPLIER / C.PLAYERS_PER_GROUP\nfor p in players:\n    p.payoff = C.ENDOWMENT - p.contribution + group.individual_share"
+        }
+      ],
+      "pages": [
+        {
+          "name": "Introduction", "kind": "info", "title": "実験の説明",
+          "display_if": "player.round_number == 1",
+          "body": "<p>{{ C.PLAYERS_PER_GROUP }}人1組で，全{{ C.NUM_ROUNDS }}ラウンド行います．毎ラウンド，各自に {{ C.ENDOWMENT }} が与えられます．</p><p>各自の拠出額の合計は <b>{{ C.MULTIPLIER }}倍</b> され，全員に等しく分配されます．</p>"
+        },
+        {
+          "name": "Contribute", "kind": "form",
+          "form_model": "player", "form_fields": ["contribution"],
+          "title": "拠出の決定",
+          "body": "<p>第 {{ player.round_number }} ラウンド（全 {{ C.NUM_ROUNDS }} ラウンド）</p><p>{{ C.ENDOWMENT }} のうち，いくら拠出するか決めてください．</p>"
+        },
+        {
+          "name": "ResultsWaitPage", "kind": "wait",
+          "after_all_players_arrive": "set_payoffs",
+          "body": "他の参加者の決定を待っています…"
+        },
+        {
+          "name": "Results", "kind": "info", "title": "結果",
+          "body": "<p>組全体の拠出額：{{ group.total_contribution }}　一人あたり分配額：{{ group.individual_share }}</p><p>このラウンドのあなたの利得：<b>{{ player.payoff }}</b></p>"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "esl_version": "0.1",
+  "meta": {
+    "name": "trust_demo",
+    "display_name": "信頼ゲーム",
+    "doc": "P1が送金額を決め，3倍になってP2に渡り，P2が返金額を決める逐次手番ゲーム．"
+  },
+  "session": {
+    "config_name": "trust",
+    "display_name": "信頼ゲーム",
+    "app_sequence": ["trust"],
+    "num_demo_participants": 2,
+    "language_code": "ja",
+    "currency_code": "JPY",
+    "use_points": true
+  },
+  "apps": [
+    {
+      "name": "trust",
+      "doc": "信頼ゲーム：プレイヤー1（送り手）が送金し，C.MULTIPLIER 倍されてプレイヤー2（受け手）に渡る．受け手は返金額を決める．",
+      "constants": {
+        "players_per_group": 2,
+        "num_rounds": 1,
+        "extra": [
+          { "name": "ENDOWMENT", "type": "currency", "value": 1000 },
+          { "name": "MULTIPLIER", "type": "int", "value": 3 }
+        ]
+      },
+      "models": {
+        "subsession": [],
+        "group": [
+          {
+            "name": "sent", "type": "currency",
+            "label": "あなたは相手にいくら送りますか？",
+            "doc": "P1の送金額", "min": 0, "max": "C.ENDOWMENT", "test_value": 500
+          },
+          {
+            "name": "sent_back", "type": "currency",
+            "label": "あなたは相手にいくら返しますか？",
+            "doc": "P2の返金額（静的上限はENDOWMENT*MULTIPLIER．動的上限はv0.2の課題）",
+            "min": 0, "max": "C.ENDOWMENT * C.MULTIPLIER", "test_value": 600
+          }
+        ],
+        "player": []
+      },
+      "logic": [
+        {
+          "name": "set_payoffs", "level": "group",
+          "body": "p1, p2 = group.get_players()\np1.payoff = C.ENDOWMENT - group.sent + group.sent_back\np2.payoff = group.sent * C.MULTIPLIER - group.sent_back"
+        }
+      ],
+      "pages": [
+        {
+          "name": "Introduction", "kind": "info", "title": "実験の説明",
+          "body": "<p>2人1組で行います．プレイヤー1は {{ C.ENDOWMENT }} を持っており，その一部または全部をプレイヤー2に送ることができます．</p><p>送られた額は <b>{{ C.MULTIPLIER }}倍</b> になってプレイヤー2に渡ります．プレイヤー2はそのうちいくらかをプレイヤー1に返すことができます．</p>"
+        },
+        {
+          "name": "Send", "kind": "form",
+          "form_model": "group", "form_fields": ["sent"],
+          "display_if": "player.id_in_group == 1",
+          "title": "送金の決定",
+          "body": "<p>あなたは <b>プレイヤー1（送り手）</b> です．{{ C.ENDOWMENT }} のうち，いくら送るか決めてください．</p>"
+        },
+        {
+          "name": "SendBackWaitPage", "kind": "wait",
+          "body": "相手の送金を待っています…"
+        },
+        {
+          "name": "SendBack", "kind": "form",
+          "form_model": "group", "form_fields": ["sent_back"],
+          "display_if": "player.id_in_group == 2",
+          "title": "返金の決定",
+          "body": "<p>あなたは <b>プレイヤー2（受け手）</b> です．相手は {{ group.sent }} を送り，あなたの手元には {{ C.MULTIPLIER }}倍の額が届きました．いくら返すか決めてください．</p>"
+        },
+        {
+          "name": "ResultsWaitPage", "kind": "wait",
+          "after_all_players_arrive": "set_payoffs",
+          "body": "相手の決定を待っています…"
+        },
+        {
+          "name": "Results", "kind": "info", "title": "結果",
+          "body": "<p>送金額：{{ group.sent }}　返金額：{{ group.sent_back }}</p><p>あなたの利得：<b>{{ player.payoff }}</b></p>"
+        }
+      ]
+    }
+  ]
+}

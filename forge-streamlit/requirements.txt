@@ -1,0 +1,5 @@
+# メイン環境にはoTreeを入れない（starlette/websocketsの衝突を回避するため）．
+# oTreeは otree_runner.py が管理する専用venvに，アプリ内ボタンから自動インストールされる．
+streamlit>=1.39
+requests
+pandas
