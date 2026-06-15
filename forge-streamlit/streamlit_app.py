@@ -1586,22 +1586,23 @@ with right:
                 st.code("\n".join(log), language="text")
 
         # デモプレイ：実際の参加者画面をブラウザで開いて動作を見る
-        # Streamlit Community Cloud等 外部から localhost:8503 に到達できない環境では
-        # FORGE_DISABLE_DEMO=1（環境変数 or Secrets）でこのブロックを隠す
-        demo_disabled = bool(os.environ.get("FORGE_DISABLE_DEMO"))
+        # 既定では非表示（Streamlit Cloud等の公開環境では外部からlocalhostに
+        # 到達できないため）．ローカル/研究室サーバでセルフホストする場合は
+        # FORGE_ENABLE_DEMO=1（環境変数 or Secrets）で有効化できる．
+        demo_enabled = bool(os.environ.get("FORGE_ENABLE_DEMO"))
         try:
-            if not demo_disabled and (
+            if not demo_enabled and (
                 (ROOT / ".streamlit" / "secrets.toml").exists()
                 or (Path.home() / ".streamlit" / "secrets.toml").exists()):
-                demo_disabled = bool(st.secrets.get("FORGE_DISABLE_DEMO", False))
+                demo_enabled = bool(st.secrets.get("FORGE_ENABLE_DEMO", False))
         except Exception:
             pass
 
-        if demo_disabled:
+        if not demo_enabled:
             st.divider()
-            st.caption("👀 デモプレイ機能はこの公開環境では無効化されている "
-                       "（外部からlocalhostに到達できないため）．"
-                       "ローカル/研究室サーバでセルフホストすれば利用できる．")
+            st.caption("👀 デモプレイ機能は既定で無効．ローカル/研究室サーバで"
+                       "セルフホストする場合は環境変数または Secrets に "
+                       "`FORGE_ENABLE_DEMO=true` を設定すると有効化される．")
         else:
             st.divider()
             st.markdown("###### 👀 デモプレイ（実際の参加者画面で動作を見る）")
