@@ -25,7 +25,10 @@ streamlit run streamlit_app.py --server.fileWatcherType poll
      を設定．画面のAPIキー欄を空のままにすると自動でこのキーが使われる
      （Haikuで動作・1セッション5回まで．Anthropic Workspaceで
      **月額spend limitを必ず設定**しておくこと）
-4. botテストを使う場合は，アプリ右下の「oTree実行環境をセットアップ」を一度押す
+4. デモプレイ機能（`otree devserver`）は Streamlit Cloud では参加者URLが
+   外部に届かないため，Secretsに `FORGE_DISABLE_DEMO = true` を入れて
+   UIごと隠すのを推奨する．botテストとページプレビューは引き続き利用できる
+5. botテストを使う場合は，アプリ右下の「oTree実行環境をセットアップ」を一度押す
    （専用venvにoTreeをインストールする．コンテナ再起動後は再実行が必要）
 
 ## 依存関係の設計（重要）

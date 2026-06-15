@@ -1586,51 +1586,68 @@ with right:
                 st.code("\n".join(log), language="text")
 
         # デモプレイ：実際の参加者画面をブラウザで開いて動作を見る
-        st.divider()
-        st.markdown("###### 👀 デモプレイ（実際の参加者画面で動作を見る）")
+        # Streamlit Community Cloud等 外部から localhost:8503 に到達できない環境では
+        # FORGE_DISABLE_DEMO=1（環境変数 or Secrets）でこのブロックを隠す
+        demo_disabled = bool(os.environ.get("FORGE_DISABLE_DEMO"))
+        try:
+            if not demo_disabled and (
+                (ROOT / ".streamlit" / "secrets.toml").exists()
+                or (Path.home() / ".streamlit" / "secrets.toml").exists()):
+                demo_disabled = bool(st.secrets.get("FORGE_DISABLE_DEMO", False))
+        except Exception:
+            pass
 
-        def start_demo():
-            """現在の仕様でプロジェクトを生成しdevserverを起動する．成否を返す"""
-            demo_dir = Path(tempfile.mkdtemp(prefix="forge_demo_"))
-            forge.build(spec, demo_dir)
-            proc = otree_runner.start_devserver(demo_dir, DEMO_PORT)
-            time.sleep(2.5)  # 起動失敗（ポート衝突等）を検知するため少し待つ
-            if proc.poll() is not None:
-                st.error("デモサーバの起動に失敗した")
-                st.code((demo_dir / "devserver.log").read_text()[-1500:], language="text")
-                return False
-            st.session_state.demo_proc = proc
-            return True
-
-        demo_proc = st.session_state.get("demo_proc")
-        demo_running = demo_proc is not None and demo_proc.poll() is None
-        if demo_running:
-            st.success(f"デモサーバ稼働中 → [デモページを開く](http://localhost:{DEMO_PORT}/demo)")
-            for r in spec.get("rooms") or []:
-                if r.get("name"):
-                    st.caption(f"🚪 部屋 '{r['name']}' → "
-                               f"http://localhost:{DEMO_PORT}/room/{r['name']} "
-                               "（管理画面の Rooms からセッションを割り当てて使う）")
-            st.caption("デモページで実験を選ぶと参加者リンクが発行される．"
-                       "人数分のタブ（またはウィンドウ）で開いて，画面を見ながらプレイする．")
-            c1, c2 = st.columns(2)
-            if c1.button("現在の仕様で再起動（変更を反映）",
-                         disabled=bool(issues), width="stretch"):
-                otree_runner.stop_devserver(demo_proc)
-                time.sleep(1)  # ポート解放を待つ
-                if start_demo():
-                    st.rerun()
-            if c2.button("デモサーバを停止", width="stretch"):
-                otree_runner.stop_devserver(demo_proc)
-                st.session_state.demo_proc = None
-                st.rerun()
+        if demo_disabled:
+            st.divider()
+            st.caption("👀 デモプレイ機能はこの公開環境では無効化されている "
+                       "（外部からlocalhostに到達できないため）．"
+                       "ローカル/研究室サーバでセルフホストすれば利用できる．")
         else:
-            if st.button("▶ デモサーバを起動（現在の仕様で実際にプレイできる）",
-                         disabled=bool(issues), width="stretch"):
-                if start_demo():
+            st.divider()
+            st.markdown("###### 👀 デモプレイ（実際の参加者画面で動作を見る）")
+
+            def start_demo():
+                """現在の仕様でプロジェクトを生成しdevserverを起動する．成否を返す"""
+                demo_dir = Path(tempfile.mkdtemp(prefix="forge_demo_"))
+                forge.build(spec, demo_dir)
+                proc = otree_runner.start_devserver(demo_dir, DEMO_PORT)
+                time.sleep(2.5)  # 起動失敗（ポート衝突等）を検知するため少し待つ
+                if proc.poll() is not None:
+                    st.error("デモサーバの起動に失敗した")
+                    st.code((demo_dir / "devserver.log").read_text()[-1500:], language="text")
+                    return False
+                st.session_state.demo_proc = proc
+                return True
+
+            demo_proc = st.session_state.get("demo_proc")
+            demo_running = demo_proc is not None and demo_proc.poll() is None
+            if demo_running:
+                st.success(f"デモサーバ稼働中 → [デモページを開く](http://localhost:{DEMO_PORT}/demo)")
+                for r in spec.get("rooms") or []:
+                    if r.get("name"):
+                        st.caption(f"🚪 部屋 '{r['name']}' → "
+                                   f"http://localhost:{DEMO_PORT}/room/{r['name']} "
+                                   "（管理画面の Rooms からセッションを割り当てて使う）")
+                st.caption("デモページで実験を選ぶと参加者リンクが発行される．"
+                           "人数分のタブ（またはウィンドウ）で開いて，画面を見ながらプレイする．")
+                c1, c2 = st.columns(2)
+                if c1.button("現在の仕様で再起動（変更を反映）",
+                             disabled=bool(issues), width="stretch"):
+                    otree_runner.stop_devserver(demo_proc)
+                    time.sleep(1)  # ポート解放を待つ
+                    if start_demo():
+                        st.rerun()
+                if c2.button("デモサーバを停止", width="stretch"):
+                    otree_runner.stop_devserver(demo_proc)
+                    st.session_state.demo_proc = None
                     st.rerun()
-            st.caption(f"起動後 http://localhost:{DEMO_PORT}/demo で参加者画面を開ける"
-                       "（ローカル・研究室サーバ向け．Streamlit Community Cloudでは外部から届かない）")
+            else:
+                if st.button("▶ デモサーバを起動（現在の仕様で実際にプレイできる）",
+                             disabled=bool(issues), width="stretch"):
+                    if start_demo():
+                        st.rerun()
+                st.caption(f"起動後 http://localhost:{DEMO_PORT}/demo で参加者画面を開ける"
+                           "（ローカル・研究室サーバ向け．Streamlit Community Cloudでは外部から届かない）")
     else:
         st.caption("botテストにはoTree実行環境が必要である（生成・書き出しには不要）．"
                    "下のボタンで専用venvに自動インストールする．")
