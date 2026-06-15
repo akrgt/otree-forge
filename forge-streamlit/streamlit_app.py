@@ -895,24 +895,19 @@ with st.sidebar:
     st.markdown("### ✦ AIで作る・修正する")
     default_key = os.environ.get("ANTHROPIC_API_KEY", "")
     shared_key = ""
-    shared_code = ""
     try:
         if (ROOT / ".streamlit" / "secrets.toml").exists() or (Path.home() / ".streamlit" / "secrets.toml").exists():
             default_key = st.secrets.get("ANTHROPIC_API_KEY", default_key)
             shared_key = st.secrets.get("FORGE_SHARED_API_KEY", "")
-            shared_code = st.secrets.get("FORGE_ACCESS_CODE", "")
     except Exception:
         pass
+    api_key_help = "入力されたキーはこのセッションのメモリ上にのみ保持される"
+    if shared_key:
+        api_key_help += (
+            f"．空欄のままなら検証用の共有キー（Haiku・1セッション{AI_SHARED_SESSION_LIMIT}回まで）を使う")
     api_key = st.text_input("Anthropic APIキー", type="password",
-                            value=default_key,
-                            help="入力されたキーはこのセッションのメモリ上にのみ保持される")
-    access_code = ""
-    if shared_key and shared_code:
-        access_code = st.text_input(
-            "または検証用アクセスコード", type="password",
-            help=(f"APIキー欄が空のときのみ有効．共有キーは1セッション{AI_SHARED_SESSION_LIMIT}回まで・"
-                  "コスト抑制のためHaikuを使用．予告なく停止する場合あり"))
-    use_shared = bool(shared_key and shared_code and access_code == shared_code and not api_key)
+                            value=default_key, help=api_key_help)
+    use_shared = bool(shared_key and not api_key)
     effective_key = shared_key if use_shared else api_key
     effective_model = AI_MODEL_SHARED if use_shared else None
     effective_max_tokens = AI_MAX_TOKENS_SHARED if use_shared else None

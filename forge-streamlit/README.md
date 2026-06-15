@@ -16,15 +16,15 @@ streamlit run streamlit_app.py --server.fileWatcherType poll
 1. このフォルダをGitHubリポジトリにpush
 2. https://share.streamlit.io で New app → リポジトリと streamlit_app.py を指定
 3. AI機能の使い方は次の2通り（コードには絶対書かない）：
-   - **(A) BYOK（推奨）**：各ユーザーが画面で自分のAnthropic APIキーを入力する．
+   - **(A) BYOK**：各ユーザーが画面で自分のAnthropic APIキーを入力する．
      Secretsに何も置かなければこの方式のみになる．運用者に課金は発生しない
    - **(B) 検証用の共有キー**：App settings → Secrets に
      ```
      FORGE_SHARED_API_KEY = "sk-ant-..."
-     FORGE_ACCESS_CODE    = "好きな合言葉"
      ```
-     を設定．画面で「検証用アクセスコード」を入れた人だけ共有キーを使える
-     （Haikuで動作・1セッション5回まで・Anthropic Workspaceで月額spend limit必須）
+     を設定．画面のAPIキー欄を空のままにすると自動でこのキーが使われる
+     （Haikuで動作・1セッション5回まで．Anthropic Workspaceで
+     **月額spend limitを必ず設定**しておくこと）
 4. botテストを使う場合は，アプリ右下の「oTree実行環境をセットアップ」を一度押す
    （専用venvにoTreeをインストールする．コンテナ再起動後は再実行が必要）
 

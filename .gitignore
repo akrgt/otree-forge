@@ -10,7 +10,8 @@ venv/
 env/
 
 # Streamlit の秘密情報（APIキー等は絶対にコミットしない）
-.streamlit/secrets.toml
+**/.streamlit/secrets.toml
+**/secrets.toml
 
 # oTree が実行時に生成する成果物
 db.sqlite3
