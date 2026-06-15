@@ -718,8 +718,14 @@ waitページに group_by_arrival_time: true を付けると到着順に players
 
 # 環境変数 FORGE_AI_MODEL で差し替え可能（既定は最新のSonnet）
 AI_MODEL = os.environ.get("FORGE_AI_MODEL", "claude-sonnet-4-5")
+# 共有キー（検証用）使用時のモデル．コスト抑制のためHaikuを既定にする
+AI_MODEL_SHARED = os.environ.get("FORGE_AI_MODEL_SHARED", "claude-haiku-4-5")
 # 大きな仕様でもJSONが途中で切れないよう余裕を持たせる
 AI_MAX_TOKENS = 16000
+# 共有キー使用時はトークン消費も抑える
+AI_MAX_TOKENS_SHARED = 8000
+# 共有キー1セッションあたりのコール上限（BYOK時は無制限）
+AI_SHARED_SESSION_LIMIT = 5
 
 
 def _extract_json(text):
@@ -730,21 +736,23 @@ def _extract_json(text):
     return json.loads(text[start:end + 1])
 
 
-def _call_claude(api_key, messages):
+def _call_claude(api_key, messages, model=None, max_tokens=None):
     import requests
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
         headers={"x-api-key": api_key, "anthropic-version": "2023-06-01",
                  "content-type": "application/json"},
-        json={"model": AI_MODEL, "max_tokens": AI_MAX_TOKENS, "temperature": 0,
-              "messages": messages},
+        json={"model": model or AI_MODEL,
+              "max_tokens": max_tokens or AI_MAX_TOKENS,
+              "temperature": 0, "messages": messages},
         timeout=180,
     )
     r.raise_for_status()
     return "".join(b.get("text", "") for b in r.json()["content"] if b.get("type") == "text")
 
 
-def ai_generate_spec(api_key, current_spec, instruction, max_attempts=3):
+def ai_generate_spec(api_key, current_spec, instruction, max_attempts=3,
+                     model=None, max_tokens=None):
     """AIで仕様を生成し，forge.validate で検証する．
 
     検証エラーはAIに差し戻して自動修正させる（最大 max_attempts 回）．
@@ -758,7 +766,7 @@ def ai_generate_spec(api_key, current_spec, instruction, max_attempts=3):
     messages = [{"role": "user", "content": prompt}]
     last_err = None
     for attempt in range(1, max_attempts + 1):
-        text = _call_claude(api_key, messages)
+        text = _call_claude(api_key, messages, model=model, max_tokens=max_tokens)
         try:
             new_spec = _extract_json(text)
             if new_spec.get("esl_version") != "0.1" or not new_spec.get("apps"):
@@ -886,26 +894,55 @@ with st.sidebar:
     st.divider()
     st.markdown("### ✦ AIで作る・修正する")
     default_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    shared_key = ""
+    shared_code = ""
     try:
         if (ROOT / ".streamlit" / "secrets.toml").exists() or (Path.home() / ".streamlit" / "secrets.toml").exists():
             default_key = st.secrets.get("ANTHROPIC_API_KEY", default_key)
+            shared_key = st.secrets.get("FORGE_SHARED_API_KEY", "")
+            shared_code = st.secrets.get("FORGE_ACCESS_CODE", "")
     except Exception:
         pass
     api_key = st.text_input("Anthropic APIキー", type="password",
                             value=default_key,
                             help="入力されたキーはこのセッションのメモリ上にのみ保持される")
+    access_code = ""
+    if shared_key and shared_code:
+        access_code = st.text_input(
+            "または検証用アクセスコード", type="password",
+            help=(f"APIキー欄が空のときのみ有効．共有キーは1セッション{AI_SHARED_SESSION_LIMIT}回まで・"
+                  "コスト抑制のためHaikuを使用．予告なく停止する場合あり"))
+    use_shared = bool(shared_key and shared_code and access_code == shared_code and not api_key)
+    effective_key = shared_key if use_shared else api_key
+    effective_model = AI_MODEL_SHARED if use_shared else None
+    effective_max_tokens = AI_MAX_TOKENS_SHARED if use_shared else None
+    effective_attempts = 2 if use_shared else 3
+    if use_shared:
+        used = st.session_state.get("shared_calls", 0)
+        st.caption(f"検証用キー使用中（残り {max(0, AI_SHARED_SESSION_LIMIT - used)} 回 / "
+                   f"モデル: {AI_MODEL_SHARED}）")
     ai_instr = st.text_area("作りたい実験／変更内容（日本語）",
                             placeholder="例：最後通牒ゲームに変えて．拒否なら両者の利得は0")
-    if st.button("実行", disabled=not (api_key and ai_instr.strip())):
-        with st.spinner("仕様を生成・検証中…（エラーがあれば自動修正する）"):
-            try:
-                new_spec, attempts = ai_generate_spec(api_key, spec, ai_instr)
-                load_spec(new_spec)
-                st.session_state.ai_msg = (
-                    "仕様を更新した（検証済み" + (f"・自動修正{attempts - 1}回" if attempts > 1 else "") + "）")
-                st.rerun()
-            except Exception as e:
-                st.error(f"失敗：{e}")
+    can_run = bool(effective_key and ai_instr.strip())
+    if st.button("実行", disabled=not can_run):
+        if use_shared and st.session_state.get("shared_calls", 0) >= AI_SHARED_SESSION_LIMIT:
+            st.error(f"検証用キーの今セッション上限（{AI_SHARED_SESSION_LIMIT}回）に達した．"
+                     "ご自身のAnthropic APIキーを入力して継続してほしい．")
+        else:
+            with st.spinner("仕様を生成・検証中…（エラーがあれば自動修正する）"):
+                try:
+                    new_spec, attempts = ai_generate_spec(
+                        effective_key, spec, ai_instr,
+                        max_attempts=effective_attempts,
+                        model=effective_model, max_tokens=effective_max_tokens)
+                    if use_shared:
+                        st.session_state["shared_calls"] = st.session_state.get("shared_calls", 0) + 1
+                    load_spec(new_spec)
+                    st.session_state.ai_msg = (
+                        "仕様を更新した（検証済み" + (f"・自動修正{attempts - 1}回" if attempts > 1 else "") + "）")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"失敗：{e}")
     msg = st.session_state.pop("ai_msg", None)
     if msg:
         st.success(msg)
