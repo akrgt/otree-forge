@@ -112,6 +112,77 @@ COND_MAP = {
 }
 COND_REV = {v: k for k, v in COND_MAP.items()}
 
+# ------------------------------------------------- チュートリアル（学習モード）
+
+# 案4：各タブのインライン解説（oTreeの概念をその場で説明する）
+CONCEPT_HELP = {
+    "basic": (
+        "**アプリ（app）** ＝ 実験を構成する1単位．本体ゲームの後にアンケートを置くなら2アプリになる"
+        "（上のセレクタで切り替え・並べ替えできる）．\n\n"
+        "**定数（C.*）** ＝ 実験中ずっと変わらない固定値．組の人数（players_per_group）・"
+        "ラウンド数（num_rounds）・元手（ENDOWMENT）など．ここで決めた値は，式や本文から "
+        "`C.名前` で参照できる（例：`{{ C.ENDOWMENT }}`）．"),
+    "model": (
+        "**モデル** ＝ oTreeがデータを保存する場所．3階層ある：\n"
+        "- **Subsession**（ラウンド全体）\n- **Group**（組）\n- **Player**（個人）\n\n"
+        "1行＝1フィールド（保存する変数）．参加者が入力する欄も，計算結果（利得など）も，"
+        "まずここで宣言する．formで使う欄には **test_value** を入れる——botテストの自動導出に必要．"),
+    "logic": (
+        "**ロジック** ＝ 決まったタイミングで走るフック関数．代表例は**利得計算**："
+        "全員の入力がそろう待機ページ（after_all_players_arrive）の後に group レベルで実行する．\n\n"
+        "**level** は関数の主語を決める（group＝組単位／player＝個人単位／subsession＝ラウンド単位）．"
+        "本体はPythonで書ける（下の「定番パターン」から雛形を挿入できる）．"),
+    "pages": (
+        "**ページ** ＝ 参加者が見る1画面．3種類：\n"
+        "- **info**：説明・結果の表示（入力なし）\n- **form**：入力欄のあるページ\n"
+        "- **wait**：全員の到着を待つ（裏で利得計算もできる）\n\n"
+        "**display_if** で「プレイヤー1だけに表示」等の出し分けができる．"
+        "上から下への並び順が，そのまま実験の進行順になる．"),
+}
+
+# 案2：プリセットの読み解きナレーション（実例で概念を学ぶ）
+PRESET_NARRATION = {
+    "blank": [
+        "説明ページ1枚だけの白紙．ここから肉付けしていく．",
+        "おすすめの順序：**モデル**で変数を作る → **ロジック**で利得計算 → **ページ**で画面を組む．",
+    ],
+    "dictator": [
+        "**独裁者ゲーム**（2人1組・1ラウンド）．最小構成の見本．",
+        "`group.kept` に「独裁者が手元に残す額」を保存する（Offerページのform欄）．",
+        "logic `set_payoffs` が group レベルで両者の利得を計算：独裁者＝kept，相手＝ENDOWMENT−kept．",
+        "ページ構成：説明(info)→入力(form)→待機(wait)→結果(info)．この4枚が基本形．",
+    ],
+    "trust": [
+        "**信頼ゲーム**（2人・逐次手番）．手番の出し分けがポイント．",
+        "`display_if` でP1には送金画面・P2には返金画面だけを表示する（同じ進行でも見える画面が違う）．",
+        "間に**待機ページ**を挟み，P1が送金してからP2が動く順番を作る．",
+        "`group.sent` が `C.MULTIPLIER` 倍されて相手に渡り，`sent_back` で返す．",
+    ],
+    "public_goods": [
+        "**公共財ゲーム**（3人・3ラウンド）．個人と組のレベルの使い分けが学べる．",
+        "各自が `player.contribution`（Player）を拠出 → 合計×倍率÷人数（Group）を全員に分配．",
+        "`num_rounds=3` で，この一連が3回繰り返される（反復ゲームの例）．",
+    ],
+    "survey": [
+        "**アンケート**（入力形式の見本）．部品カタログとして使う．",
+        "`players_per_group=None` ＝ グループなしの個人課題（待機も利得計算もなし）．",
+        "スライダー・星評価・リッカート表・ボタン選択など，ほぼ全ての入力形式（widget）を一覧できる．",
+    ],
+}
+
+
+def learn_on():
+    """学習モード（チュートリアル表示）が有効か"""
+    return st.session_state.get("learn_mode", True)
+
+
+def concept_popover(key):
+    """学習モード時，タブ先頭に概念解説のポップオーバーを出す（案4）"""
+    if learn_on():
+        with st.popover("❔ このタブは何をする？"):
+            st.markdown(CONCEPT_HELP[key])
+
+
 # ------------------------------------------------- ブロックパレット・フロー図
 
 LIKERT5 = [[1, "全くそう思わない"], [2, "そう思わない"], [3, "どちらでもない"],
@@ -875,6 +946,11 @@ with st.sidebar:
     st.markdown("## 🧪 oTree Forge")
     st.caption("EXPERIMENT SPEC STUDIO · ESL v0.1 (Streamlit)")
 
+    # 学習モード：チェックリスト・概念解説・プリセットの読み解きをまとめてon/off
+    st.toggle("📚 学習モード（初めての人向けの解説を表示）", key="learn_mode", value=True,
+              help="チェックリスト・各タブの解説・プリセットの読み解きを表示する．"
+                   "慣れたらオフにできる")
+
     u1, u2 = st.columns(2)
     pos = st.session_state.hist_pos
     if u1.button("↩ 元に戻す", disabled=pos == 0, width="stretch",
@@ -890,6 +966,11 @@ with st.sidebar:
     if st.button("このプリセットを読み込む（現在の編集は破棄）"):
         load_spec(presets[pk])
         st.rerun()
+    # 案2：選択中のプリセットの「読み解き」——実例で概念を学ぶ
+    if learn_on() and pk in PRESET_NARRATION:
+        with st.expander(f"📖 「{PRESET_LABELS.get(pk, pk)}」の読み解き", expanded=False):
+            for line in PRESET_NARRATION[pk]:
+                st.markdown(f"- {line}")
 
     st.divider()
     st.markdown("### ✦ AIで作る・修正する")
@@ -991,6 +1072,7 @@ with left:
 
     # ---- 基本・定数 ----
     with tab_basic:
+        concept_popover("basic")
         c1, c2 = st.columns(2)
         name = c1.text_input("アプリ名（NAME_IN_URL）", value=app["name"], key=K("appname"))
         app["name"] = name
@@ -1117,6 +1199,7 @@ with left:
 
     # ---- モデル ----
     with tab_model:
+        concept_popover("model")
         st.caption("formページで使うフィールドには test_value を必ず入れる——botテストの自動導出に必要である．"
                    "min/max には数値のほか式（C.ENDOWMENT 等）も書ける．"
                    "choices を入れると選択式になる（既定はドロップダウン，入力形式でラジオに変更可）．")
@@ -1190,6 +1273,7 @@ with left:
 
     # ---- ロジック ----
     with tab_logic:
+        concept_popover("logic")
         st.caption("フック関数の本体をPythonで注入する（エスケープハッチL2）．"
                    "WaitPageの after_all_players_arrive から名前で参照される．")
         for li, fn in enumerate(app.get("logic", [])):
@@ -1224,6 +1308,7 @@ with left:
 
     # ---- ページ ----
     with tab_pages:
+        concept_popover("pages")
         # フロー図：いま組み立てている実験の流れを俯瞰する
         st.markdown("###### 🗺 実験フロー（緑枠＝編集中のapp）")
         try:
@@ -1441,6 +1526,29 @@ with right:
     # botテストはセッション全体を通しでプレイするため，全appで導出可能であること
     bots_missing = [a["name"] for a in spec["apps"] if forge.emit_bot(a) is None]
     bot_ok = not bots_missing
+
+    # 案1：オンボーディング・チェックリスト（状態に応じて自動でチェックが付く）
+    if learn_on():
+        has_fields = any(a["models"].get(lv) for a in spec["apps"]
+                         for lv in ("subsession", "group", "player"))
+        has_pages = any(len(a.get("pages", [])) >= 2 for a in spec["apps"])
+        test_ok = bool((st.session_state.get("test_result") or {}).get("ok"))
+        steps = [
+            (has_fields, "モデルに変数（フィールド）を定義する", "「モデル」タブで入力する"),
+            (has_pages, "ページを2枚以上そろえる", "「ページ」タブで説明・入力・結果などを足す"),
+            (not issues, "仕様検証をOKにする", "下の警告をすべて解消する"),
+            (bot_ok, "form欄に test_value を入れてbot導出を可能にする", "「モデル」タブで test_value を埋める"),
+            (test_ok, "botテストに合格する", "下の「otree test を実行」で通しプレイを確認する"),
+        ]
+        done = sum(1 for ok, *_ in steps if ok)
+        with st.expander(f"📋 進めかたチェックリスト（{done}/{len(steps)} 完了）",
+                         expanded=done < len(steps)):
+            st.progress(done / len(steps))
+            for ok, title, hintn in steps:
+                if ok:
+                    st.markdown(f"- ✅ ~~{title}~~")
+                else:
+                    st.markdown(f"- ⬜ **{title}** — {hintn}")
 
     s1, s2 = st.columns(2)
     s1.metric("仕様の検証", "OK ✓" if not issues else f"警告 {len(issues)} 件")
