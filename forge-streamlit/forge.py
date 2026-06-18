@@ -946,7 +946,7 @@ def sections_to_html(content, fdefs=None, with_fields=False):
     return "\n".join(parts)
 
 
-def emit_page_html(pg, app=None):
+def emit_page_html(pg, app=None, has_theme=False):
     fdefs = {}
     if app is not None and pg["kind"] == "form":
         # min/max等の定数式（C.ENDOWMENT等）は数値に解決してからHTML属性に埋める
@@ -965,7 +965,14 @@ def emit_page_html(pg, app=None):
     else:
         body = pg.get("body", "")
 
-    blocks = [
+    blocks = []
+    # テーマ適用時：通常ページはoTreeが自動で otree/Page.html をextendしてしまい，
+    # プロジェクトの _templates/global/Page.html を経由しない（テーマCSSが効かない）．
+    # そこで global/Page.html を明示的にextendする（先頭がExtendsNodeなら
+    # oTreeの自動extends挿入は抑止される＝二重extendsにならない）．
+    if has_theme:
+        blocks.append('{{ extends "global/Page.html" }}')
+    blocks += [
         "{{ block title }}",
         pg.get("title", pg["name"]),
         "{{ endblock }}",
@@ -1038,9 +1045,15 @@ def theme_css(theme):
 .progress-bar {{ background-color: {base}; }}"""
 
 
-def emit_global_page(theme):
-    """全ページ共通の土台テンプレート（_templates/global/Page.html）を生成する"""
-    return (f'{{{{ extends "otree/Page.html" }}}}\n\n'
+def emit_global_page(theme, base="Page"):
+    """全ページ共通の土台テンプレート（_templates/global/{base}.html）を生成する．
+
+    base="Page" は通常ページ用，base="WaitPage" は待機ページ用．
+    待機ページは oTree が _templates/global/WaitPage.html を自動採用するが，
+    通常ページは生成HTML側で明示的に global/Page.html をextendする必要がある
+    （emit_page_html の has_theme を参照）．
+    """
+    return (f'{{{{ extends "otree/{base}.html" }}}}\n\n'
             f'{{{{ block global_styles }}}}\n'
             f'{font_links(theme)}<style>\n{theme_css(theme)}\n</style>\n'
             f'{{{{ endblock }}}}\n')
@@ -1110,10 +1123,16 @@ def build(spec, outdir: Path):
         (outdir / aux).mkdir(exist_ok=True)
         (outdir / aux / ".gitkeep").write_text("", encoding="utf-8")
     # テーマがあれば全ページ共通の土台テンプレートを出力する
-    if spec.get("theme"):
+    has_theme = bool(spec.get("theme"))
+    if has_theme:
         gdir = outdir / "_templates" / "global"
         gdir.mkdir(parents=True, exist_ok=True)
-        (gdir / "Page.html").write_text(emit_global_page(spec["theme"]), encoding="utf-8")
+        # 通常ページ用（生成HTMLが明示的にextendする）と待機ページ用
+        # （oTreeが global/WaitPage.html を自動採用する）の両方を出力する
+        (gdir / "Page.html").write_text(
+            emit_global_page(spec["theme"], "Page"), encoding="utf-8")
+        (gdir / "WaitPage.html").write_text(
+            emit_global_page(spec["theme"], "WaitPage"), encoding="utf-8")
     (outdir / "settings.py").write_text(emit_settings(spec), encoding="utf-8")
     (outdir / "requirements.txt").write_text("otree\n", encoding="utf-8")
     # 部屋の参加者ラベルファイル（1行1ラベル）
@@ -1139,7 +1158,8 @@ def build(spec, outdir: Path):
         for pg in app["pages"]:
             if pg["kind"] == "wait":
                 continue
-            (appdir / f"{pg['name']}.html").write_text(emit_page_html(pg, app), encoding="utf-8")
+            (appdir / f"{pg['name']}.html").write_text(
+                emit_page_html(pg, app, has_theme=has_theme), encoding="utf-8")
     print(f"OK: oTreeプロジェクトを {outdir} に生成した")
 
 
