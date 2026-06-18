@@ -966,6 +966,24 @@ with st.sidebar:
     if st.button("このプリセットを読み込む（現在の編集は破棄）"):
         load_spec(presets[pk])
         st.rerun()
+    # 現在の編集を保持したまま，プリセットのappを末尾に連結する
+    # （例：独裁者ゲームの後に用意済みアンケートを足す）
+    if st.button("⊕ このプリセットを末尾にapp追加（現在の編集は保持）",
+                 disabled=pk == "blank",
+                 help="独裁者ゲーム＋アンケートのように，用意済みのappを後ろに連結する"
+                      "（app_sequenceは自動同期．app名が重複する場合は自動でリネーム）"):
+        existing = {a["name"] for a in spec["apps"]}
+        added = []
+        for src in copy.deepcopy(presets[pk]["apps"]):
+            src["name"] = _uniq(src["name"], existing)
+            existing.add(src["name"])
+            spec["apps"].append(src)
+            added.append(src["name"])
+        st.session_state.app_idx = len(spec["apps"]) - 1  # 追加したappへ移動
+        st.session_state.ver += 1
+        st.session_state.pop("test_result", None)  # 構成が変わったので古いテスト結果は捨てる
+        st.session_state.ai_msg = f"app追加：{'，'.join(added)}"
+        st.rerun()
     # 案2：選択中のプリセットの「読み解き」——実例で概念を学ぶ
     if learn_on() and pk in PRESET_NARRATION:
         with st.expander(f"📖 「{PRESET_LABELS.get(pk, pk)}」の読み解き", expanded=False):
