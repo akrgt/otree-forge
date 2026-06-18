@@ -76,7 +76,8 @@
           "name": "Results",
           "kind": "info",
           "title": "結果",
-          "body": "<p>決定者が手元に残した額：<b>{{ group.kept }}</b></p>\n<p>あなたの利得：<b>{{ player.payoff }}</b></p>"
+          "vars_for_template": "other = player.get_others_in_group()[0]\nreturn dict(other_payoff=other.payoff)",
+          "body": "<p>決定者が手元に残した額：<b>{{ group.kept }}</b></p>\n<p>あなたの利得：<b>{{ player.payoff }}</b></p>\n<p>相手の利得：<b>{{ other_payoff }}</b></p>"
         }
       ]
     }
