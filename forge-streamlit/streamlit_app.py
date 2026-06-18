@@ -1636,6 +1636,11 @@ with right:
                        (b"" if issues else project_zip_bytes),
                        file_name=f"{spec['meta']['name']}_otree.zip", mime="application/zip",
                        disabled=bool(issues), width="stretch")
+    st.caption("これは**通常のzip**（.otreezipではない）．展開すると素のoTreeプロジェクト"
+               "フォルダになる．使い方：解凍 → そのフォルダで `otree devserver`（または "
+               "`pip install otree` 済みの環境で実行）．`otree zip` で作る .otreezip とは別物で，"
+               "`otree unzip` は不要．`esl_spec.json` も同梱するので，後でこのアプリに"
+               "読み込んで編集を再開できる．")
 
     # otree test 実行（Streamlit版の独自機能）
     # 依存衝突を避けるため，oTreeは otree_runner が管理する専用venvで実行する

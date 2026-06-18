@@ -104,6 +104,11 @@ StreamlitとoTreeは最新版同士では共存できない（starlette / websoc
   デモ参加者数がグループ人数で割り切れるか等），theme の色形式・文字サイズ検査，
   group_by_arrival_time の配置検査（先頭の待機ページのみ）
 - 書き出し：ESL仕様（JSON），oTreeプロジェクト一式（zip，esl_spec.json同梱）
+  - このzipは**通常のzipであり，oTreeの `.otreezip` ではない**．解凍すると素の
+    oTreeプロジェクトフォルダになる（`otree unzip` は不要）．使い方は，解凍して
+    そのフォルダで `otree devserver` を実行するだけ．`otree zip`/`otree unzip` が扱う
+    `.otreezip` 形式とは別物である．同梱の `esl_spec.json` を本アプリに読み込めば
+    GUI編集を再開できる
 - **otree test の画面内実行**：botが実験を自動プレイし，合否とログを表示する
   （専用venvはアプリ内ボタンから自動構築）
 - **botの行動検証**：どの参加者がどのページで何を送信したか（行動ログ）と，
