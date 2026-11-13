@@ -592,7 +592,20 @@ def emit_app_init(app):
     for extra in c.get("extra", []):
         const_lines.append(f"    {extra['name']} = {py_value(extra['value'], extra['type'])}")
 
+    header = (
+        "# " + "=" * 68 + "\n"
+        f"# {app['name']} — oTreeアプリ（oTree Forge Studio が esl_spec.json から生成）\n"
+        "# このファイルは直接編集してよい．構成：\n"
+        "#   class C                 … 定数（人数・ラウンド数・元手など）\n"
+        "#   class Subsession/Group/Player … 保存するデータ（フィールド）\n"
+        "#   def 関数（logic）       … 利得計算などの処理（待機ページから呼ばれる）\n"
+        "#   class *(Page/WaitPage)  … 参加者が見る画面（本文HTMLは同名の .html）\n"
+        "#   page_sequence           … 画面の表示順\n"
+        "# 質問文（ラベル）は各フィールドの label= にある．GUI編集を再開するなら\n"
+        "# 同梱の esl_spec.json を Forge Studio に読み込む．\n"
+        "# " + "=" * 68)
     parts = [
+        header,
         "from otree.api import *",
         "",
         "",
@@ -787,8 +800,55 @@ _MULTICHECK_TMPL = '''<div class="mb-3" id="mc_@name@">
 </script>'''
 
 
+def _tmpl_comment(text):
+    """oTreeテンプレートのコメント {# ... #} を安全に作る（区切り衝突を避ける）．
+    生成HTMLに残しても描画されず（oTreeが除去する），編集者への注釈として機能する．"""
+    safe = str(text).replace("#}", "# }").replace("{#", "{ #")
+    return "{# " + safe + " #}"
+
+
+def _field_note(f):
+    """入力欄ごとの編集ガイド文（独自widgetは手書きHTMLで分かりにくいので種別を明記）"""
+    name = f["name"]
+    label = f.get("label", name)
+    w = f.get("widget")
+    where = f"__init__.py の {name}"
+    tail = "．forge生成の手書きHTML＋JS．直接編集可だが再生成で上書きされる"
+    custom = {
+        "Slider":
+            f"スライダー入力 {name}「{label}」：範囲・刻みは下のmin/max/step（{where}由来），"
+            f"両端の文字はleft_label/right_label" + tail,
+        "SliderNoAnchor":
+            f"スライダー（つまみ非表示・アンカリング回避）{name}「{label}」："
+            f"クリックするまで未回答．範囲は{where}のmin/max" + tail,
+        "ButtonSelect":
+            f"ボタン選択（押すと即送信して次へ）{name}「{label}」：選択肢は{where}のchoices" + tail,
+        "StarRating":
+            f"星評価 {name}「{label}」：星の数はmax（{where}）" + tail,
+        "NumberStepper":
+            f"数値ステッパー（−/＋）{name}「{label}」：範囲は{where}のmin/max" + tail,
+        "MultiCheckbox":
+            f"複数選択 {name}「{label}」：カンマ区切りでstr保存．選択肢は{where}のchoices" + tail,
+    }
+    if w in custom:
+        return custom[w]
+    if w == "LikertMatrix":
+        return None  # 表にまとめて出力するため emit_matrix_html 側で注記する
+    # 標準の入力欄（{{ formfield }}）：質問文（label）の在りかを示す
+    return (f"入力欄 {name}（{f.get('type', '')}）／質問文:「{label}」"
+            f"←文言は {where} の label= で変更")
+
+
 def emit_input_html(f):
-    """フィールド1つ分の入力HTMLを返す（標準は {{ formfield }}，独自widgetは手書きinput）"""
+    """フィールド1つ分の入力HTML．先頭に編集ガイドのコメントを添える
+    （独自widgetの正体・各設定の出どころが生成HTMLだけで分かるようにする）．"""
+    note = _field_note(f)
+    body = _emit_input_html_inner(f)
+    return (_tmpl_comment(note) + "\n" + body) if note else body
+
+
+def _emit_input_html_inner(f):
+    """（実体）標準は {{ formfield }}，独自widgetは手書きinputを返す"""
     name = f["name"]
     label = _esc(f.get("label", name))
     w = f.get("widget")
@@ -850,6 +910,10 @@ def emit_input_html(f):
 
 def emit_matrix_html(group_fields):
     """連続するLikertMatrixフィールドを1つの表（行=質問，列=選択肢）にまとめる"""
+    names = "，".join(f["name"] for f in group_fields)
+    note = _tmpl_comment(
+        f"リッカート表 {names}：行＝各質問の label，列＝choices（選択肢）．"
+        "質問の増減は __init__.py で同じchoicesの欄を足す/減らす；選択肢の文言はchoices") + "\n"
     cols = _choice_pairs(group_fields[0])
     head = "".join(f'<th class="text-center">{_esc(lab)}</th>' for _, lab in cols)
     rows = []
@@ -858,7 +922,7 @@ def emit_matrix_html(group_fields):
             f'<td class="text-center"><input class="form-check-input" type="radio" '
             f'name="{f["name"]}" value="{_esc(val)}" required></td>' for val, _ in cols)
         rows.append(f'    <tr><td>{_esc(f.get("label", f["name"]))}</td>{cells}</tr>')
-    return ('<table class="table table-striped align-middle">\n'
+    return (note + '<table class="table table-striped align-middle">\n'
             f'  <thead><tr><th></th>{head}</tr></thead>\n  <tbody>\n'
             + "\n".join(rows) + "\n  </tbody>\n</table>")
 
@@ -1114,6 +1178,54 @@ INSTALLED_APPS = ['otree']
 """
 
 
+def emit_project_readme(spec):
+    """書き出しプロジェクト直下のREADME（ファイルの地図＋直し方の案内）を作る．
+
+    解凍した人が「どのファイルが何で，どこを直せばよいか」を最初に掴めるようにする．
+    """
+    meta = spec.get("meta", {})
+    title = meta.get("display_name") or meta.get("name", "oTree project")
+    apps = [a["name"] for a in spec.get("apps", [])]
+    first = apps[0] if apps else "app"
+    seq = " → ".join(spec.get("session", {}).get("app_sequence", apps))
+    app_map = "\n".join(
+        f"- `{a}/__init__.py` … アプリ「{a}」本体：定数(C)・データ(Player/Group)・処理(関数)・画面(Page)\n"
+        f"- `{a}/*.html` … 「{a}」の各ページの見た目（`{{{{ block content }}}}` の中が本文）"
+        for a in apps)
+    theme_line = ("- `_templates/global/Page.html` … 全ページ共通の見た目（テーマCSS：背景色・フォント・配色）\n"
+                  if spec.get("theme") else "")
+    return f"""# {title}
+
+このフォルダは **oTree Forge Studio が ESL仕様から自動生成した素のoTreeプロジェクト**である．
+そのまま編集・実行できる．これは通常のフォルダで，oTreeの `.otreezip` ではない．
+
+## 動かす
+```
+pip install otree
+otree devserver
+```
+ブラウザで http://localhost:8000 を開く（実験の順番：{seq}）．
+
+## ファイルの地図
+- `settings.py` … セッション設定（参加人数・通貨・言語・部屋など）
+{app_map}
+- `{first}/tests.py` … botテスト（自動プレイ）の入口
+{theme_line}- `_static/` … 画像・CSS・JSなどの静的ファイル置き場
+- `esl_spec.json` … この実験の設計データ．**Forge Studioに読み込めばGUI編集を再開できる**
+
+## 直したいとき，どこを見るか
+- 利得の計算を変える … `{first}/__init__.py` の logic関数（例：`set_payoffs`）
+- 質問文・入力欄を変える … `{first}/__init__.py` の Player/Group フィールド（質問文は `label=`）
+- 画面の文章を変える … `{first}/<ページ名>.html`
+- 入力欄の見た目を変える … 各 `.html`．独自入力（スライダー等）は欄の直前に
+  `{{# … #}}` で種別と設定の出どころを注記してある
+- 進行順を変える … `{first}/__init__.py` 末尾の `page_sequence`
+- 人数・ラウンド数・定数 … `{first}/__init__.py` の `class C`
+
+> メモ：HTML中の `{{# … #}}` はoTreeが描画時に取り除くコメント（編集者向けの注釈）である．
+"""
+
+
 # -------------------------------------------------------------------- build
 
 def build(spec, outdir: Path):
@@ -1135,6 +1247,8 @@ def build(spec, outdir: Path):
             emit_global_page(spec["theme"], "WaitPage"), encoding="utf-8")
     (outdir / "settings.py").write_text(emit_settings(spec), encoding="utf-8")
     (outdir / "requirements.txt").write_text("otree\n", encoding="utf-8")
+    # 解凍した人向けの案内（ファイルの地図＋直し方）
+    (outdir / "README.md").write_text(emit_project_readme(spec), encoding="utf-8")
     # 部屋の参加者ラベルファイル（1行1ラベル）
     for r in spec.get("rooms") or []:
         if r.get("participant_labels"):

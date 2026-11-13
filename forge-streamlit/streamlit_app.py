@@ -719,6 +719,9 @@ def render_preview_html(pg, app, theme):
         head, rest = tpl.split("{{ endblock }}", 1)
         title = head.replace("{{ block title }}", "").strip()
         content = rest.replace("{{ block content }}", "").rsplit("{{ endblock }}", 1)[0].strip()
+        # oTreeテンプレートコメント {# … #} は実機でも除去される（編集者向け注釈）．
+        # プレビューでも同様に取り除き，画面に出さない
+        content = re.sub(r"\{#.*?#\}", "", content, flags=re.S).strip()
         fdefs = {f["name"]: forge.resolve_field_nums(f, app)
                  for f in app["models"].get(pg.get("form_model", "player"), [])}
         content = re.sub(
