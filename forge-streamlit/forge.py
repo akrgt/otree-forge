@@ -96,6 +96,32 @@ def _check_code(body, where, err):
         err(f"{where}: コード{max(1, (e.lineno or 1) - 1)}行目に構文エラーがある（{e.msg}）")
 
 
+# ページのコード欄（display_if・vars_for_template・js_vars・live_method）は
+# 引数が player だけの関数になる．group 等は player.group のように辿る必要がある
+_PLAYER_ONLY_NAMES = {"group": "player.group", "subsession": "player.subsession",
+                      "participant": "player.participant", "session": "player.session"}
+
+
+def _check_player_scope(body, where, err):
+    """player しか渡されないコード欄で，未定義の group 等を使っていないか調べる．
+
+    構文は正しいのに実行時に NameError で止まる，という誤りを生成前に拾う．
+    コード内で自分で代入している名前（group = player.group 等）は対象外．
+    """
+    import ast
+    try:
+        tree = ast.parse("def _f():\n" + textwrap.indent(body or "pass", "    "))
+    except SyntaxError:
+        return  # 構文エラーは _check_code / _check_expr が報告する
+    assigned = {n.id for n in ast.walk(tree)
+                if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+    used = {n.id for n in ast.walk(tree)
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+    for name in sorted((used & set(_PLAYER_ONLY_NAMES)) - assigned):
+        err(f"{where}: ここで使える変数は player だけである．"
+            f"'{name}' は '{_PLAYER_ONLY_NAMES[name]}' と書く")
+
+
 def _num(v):
     """数値リテラルのみ返す（boolと式文字列はNone）"""
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
@@ -258,15 +284,20 @@ def validate(spec):
                 err(f"{aname}.{pname}: kind は {sorted(PAGE_KINDS)} のいずれか")
             if pg.get("display_if"):
                 _check_expr(pg["display_if"], f"{aname}.{pname}.display_if", err)
+                _check_player_scope("return " + str(pg["display_if"]),
+                                    f"{aname}.{pname}.display_if", err)
             if pg.get("vars_for_template"):
                 _check_code(pg["vars_for_template"], f"{aname}.{pname}.vars_for_template", err)
+                _check_player_scope(pg["vars_for_template"], f"{aname}.{pname}.vars_for_template", err)
             if pg.get("js_vars"):
                 _check_code(pg["js_vars"], f"{aname}.{pname}.js_vars", err)
+                _check_player_scope(pg["js_vars"], f"{aname}.{pname}.js_vars", err)
             # ライブページ（リアルタイム通信）
             if pg.get("live_method"):
                 if kind == "wait":
                     err(f"{aname}.{pname}: live_method は待機ページには置けない")
                 _check_code(pg["live_method"], f"{aname}.{pname}.live_method", err)
+                _check_player_scope(pg["live_method"], f"{aname}.{pname}.live_method", err)
             if pg.get("live_test"):
                 if not pg.get("live_method"):
                     err(f"{aname}.{pname}: live_test には live_method が必要")

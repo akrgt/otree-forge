@@ -55,3 +55,14 @@ def test_bots_complete(path, tmp_path):
     forge.build(spec, out)
     ok, log = otree_runner.run_test(out, spec["session"]["config_name"])
     assert ok, "otree test が失敗した：\n" + "\n".join(log[-40:])
+
+
+def test_player_scope_check():
+    """player しか使えないコード欄の group を，生成前の検証で拾う"""
+    spec = _load(ROOT / "examples" / "dictator.json")
+    page = next(p for p in spec["apps"][0]["pages"] if p.get("kind") != "wait")
+    page["vars_for_template"] = "return dict(x=group.id_in_subsession)"
+    with pytest.raises(forge.SpecError, match="player.group"):
+        forge.validate(spec)
+    page["vars_for_template"] = "group = player.group\nreturn dict(x=group.id_in_subsession)"
+    forge.validate(spec)

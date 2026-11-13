@@ -774,6 +774,8 @@ choicesがある欄の test_value は choices の値から選ぶ（MultiCheckbox
 logicは {name,level(group|player|subsession),body}．bodyは関数本体のPython（def行なし・インデント0基準），通貨は cu()．
 pagesは順序がpage_sequence．kind=info{name,title,body,display_if?}/form{name,form_model,form_fields[],title,body,display_if?}/wait{name,after_all_players_arrive?,body?,group_by_arrival_time?}．
 bodyはHTMLでoTree記法 {{ C.X }} 等が使える．display_ifはPython式．
+ページ（wait以外）に vars_for_template（Pythonコード，return dict(...) で終える）を置くと，その値を本文で {{ 名前 }} として使える．
+display_if・vars_for_template・js_vars・live_method の中で使える変数は player（と C）だけである．グループの値は player.group.x，相手は player.get_others_in_group()，参加者は player.participant と書く（単独の group・subsession・participant・session は未定義でエラーになる）．本文HTMLの {{ group.x }} は使える．
 waitページに group_by_arrival_time: true を付けると到着順に players_per_group 人ずつ組にする（appの最初のページである場合のみ可）．
 ページ（wait以外）に live_method（Pythonコード，playerとdataを受け取り {宛先id: データ} を返す．0=グループ全員）を置くとライブページになる．本文側は liveSend(データ) で送信し function liveRecv(data){...} で受信する．live_test（例 "method(1, {})"）を付けるとbotテスト中にliveSendを模擬できる．グループチャットは live不要で本文に {{ chat }} と書くだけでよい．
 逐次手番は form(P1のみ)→wait→form(P2のみ)→wait(利得計算)→結果 のパターン．
@@ -785,7 +787,8 @@ waitページに group_by_arrival_time: true を付けると到着順に players
 - フィールド名に payoff/round_number/id_in_group/role 等のoTree予約語を使わない
 - 利得計算は logic（level=group）に書き，waitページの after_all_players_arrive から名前で参照する
 - 定数は C.NAME で参照する．C.PLAYERS_PER_GROUP と C.NUM_ROUNDS は自動定義される
-- logicのbodyと display_if は構文的に正しいPythonであること"""
+- logicのbodyと display_if は構文的に正しいPythonであること
+- display_if・vars_for_template・js_vars・live_method では group を単独で書かず player.group と書く"""
 
 
 # ---------------------------------------------------------------- AI helpers
