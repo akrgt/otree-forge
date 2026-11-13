@@ -19,7 +19,11 @@ import tempfile
 from pathlib import Path
 
 # requests はoTreeのbotランナーが実行時に必要とする
-OTREE_PACKAGES = ["otree>=6,<7", "requests"]
+# 版は固定する（tests/test_presets.py を通した組み合わせ）
+OTREE_PACKAGES = ["otree==6.0.15", "requests==2.34.2"]
+
+# 子プロセス（利用者が書いたコードが動く）に渡さない環境変数
+SECRET_ENV_NAMES = ("ANTHROPIC_API_KEY", "FORGE_SHARED_API_KEY")
 ENV_DIR = Path(os.environ.get("OTREE_FORGE_ENV", str(Path.home() / ".otree_forge_env")))
 
 # 直近のデモサーバの pid と一時ディレクトリを記録する状態ファイル．
@@ -48,6 +52,10 @@ def _child_env():
     （絶対パスでない）で再起動するため，venvの bin を PATH 先頭に通しておく．
     """
     env = os.environ.copy()
+    # 鍵は子プロセスに渡さない（bot・デモでは利用者のPythonが実行されるため）．
+    # ただし同じ機械の secrets.toml までは隠せない：公開運用で共有キーを置かないこと
+    for name in SECRET_ENV_NAMES:
+        env.pop(name, None)
     bin_dir = _bin_dir()
     if bin_dir.exists():
         env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")

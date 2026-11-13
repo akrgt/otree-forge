@@ -1,5 +1,7 @@
 # メイン環境にはoTreeを入れない（starlette/websocketsの衝突を回避するため）．
 # oTreeは otree_runner.py が管理する専用venvに，アプリ内ボタンから自動インストールされる．
-streamlit>=1.39
-requests
-pandas
+# 版は固定する（休止明けのたびに違う版が入って突然壊れるのを防ぐ）．
+# 上げるときは tests/ を通してから書き換える．Python は 3.11 以上（pandas 3 の要件）．
+streamlit==1.56.0
+requests==2.33.1
+pandas==3.0.2

@@ -23,8 +23,17 @@ streamlit run streamlit_app.py --server.fileWatcherType poll
      FORGE_SHARED_API_KEY = "sk-ant-..."
      ```
      を設定．画面のAPIキー欄を空のままにすると自動でこのキーが使われる
-     （Haikuで動作・1セッション5回まで．Anthropic Workspaceで
+     （Haikuで動作・1セッション5回まで＋全利用者の合計で1日50回まで
+     ＝環境変数 `FORGE_SHARED_DAILY_LIMIT` で変更可．Anthropic Workspaceで
      **月額spend limitを必ず設定**しておくこと）
+   - **誰でも開ける公開URLでは (B) を使わない**．このアプリは利用者が書いた
+     Python（利得計算・live_method 等）を botテストで実行する．つまり公開URLを
+     知っている人は同じ機械で任意のコードを動かせ，Secrets に置いたキーを読み取れる．
+     回数制限も画面側の歯止めにすぎない．(B) は招待制（Streamlit Cloud の
+     「Only specific people can view this app」）か，研究室内のサーバに限る．
+     公開URLでは (A) だけにする
+   - サーバ側のキー（`ANTHROPIC_API_KEY`・共有キー）は画面の入力欄には入れず，
+     botテスト・デモの子プロセスにも渡さない
 4. デモプレイ機能（`otree devserver`）は Streamlit Cloud では参加者URLが
    外部に届かないため**既定で無効**．Cloud側では何もする必要なし．
    ローカル/研究室サーバでセルフホスト時に使いたい場合のみ，
@@ -32,6 +41,18 @@ streamlit run streamlit_app.py --server.fileWatcherType poll
    botテストとページプレビューは既定で利用できる
 5. botテストを使う場合は，アプリ右下の「oTree実行環境をセットアップ」を一度押す
    （専用venvにoTreeをインストールする．コンテナ再起動後は再実行が必要）
+
+## 版の固定とテスト
+- `requirements.txt` の streamlit・requests・pandas と，`otree_runner.py` の
+  `OTREE_PACKAGES`（oTree本体）は版を固定してある．Community Cloud は休止明けに
+  環境を作り直すので，固定しないとある日突然違う版が入って壊れる
+- Python は 3.11 以上（Community Cloud では App settings の Python version で選ぶ）
+- 版を上げるとき・forge.py やプリセットを直したときは，次を通してから push する：
+  ```
+  pip install pytest
+  python -m pytest tests -q
+  ```
+  `examples/*.json` を1つずつ 仕様検証 → プロジェクト生成 → `otree test`（bot）に通す
 
 ## 依存関係の設計（重要）
 StreamlitとoTreeは最新版同士では共存できない（starlette / websockets の衝突）．

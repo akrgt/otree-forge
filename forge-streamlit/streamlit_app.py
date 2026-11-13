@@ -800,6 +800,27 @@ AI_MAX_TOKENS = 16000
 AI_MAX_TOKENS_SHARED = 8000
 # 共有キー1セッションあたりのコール上限（BYOK時は無制限）
 AI_SHARED_SESSION_LIMIT = 5
+# 共有キーの1日あたりのコール上限（全利用者の合計）．セッション上限はページを
+# 開き直すと0に戻るため，それとは別にサーバ側で数える（再起動で0に戻る点は残る）
+AI_SHARED_DAILY_LIMIT = int(os.environ.get("FORGE_SHARED_DAILY_LIMIT", "50"))
+
+
+@st.cache_resource
+def _shared_usage():
+    """共有キーの使用回数（{日付: 回数}）．全セッションで1つを共有する"""
+    return {}
+
+
+def _shared_used_today():
+    return _shared_usage().get(time.strftime("%Y-%m-%d"), 0)
+
+
+def _shared_count_up():
+    u = _shared_usage()
+    day = time.strftime("%Y-%m-%d")
+    for k in [k for k in u if k != day]:
+        del u[k]
+    u[day] = u.get(day, 0) + 1
 
 
 def _extract_json(text):
@@ -998,7 +1019,10 @@ with st.sidebar:
     default_key = os.environ.get("ANTHROPIC_API_KEY", "")
     shared_key = ""
     try:
-        if (ROOT / ".streamlit" / "secrets.toml").exists() or (Path.home() / ".streamlit" / "secrets.toml").exists():
+        # Streamlit は 起動した場所（cwd）と ホーム の .streamlit/secrets.toml を読む．
+        # Community Cloud ではリポジトリ直下が cwd になるので，そこも見る
+        if any((d / ".streamlit" / "secrets.toml").exists()
+               for d in (ROOT, Path.cwd(), Path.home())):
             default_key = st.secrets.get("ANTHROPIC_API_KEY", default_key)
             shared_key = st.secrets.get("FORGE_SHARED_API_KEY", "")
     except Exception:
@@ -1007,10 +1031,13 @@ with st.sidebar:
     if shared_key:
         api_key_help += (
             f"．空欄のままなら検証用の共有キー（Haiku・1セッション{AI_SHARED_SESSION_LIMIT}回まで）を使う")
-    api_key = st.text_input("Anthropic APIキー", type="password",
-                            value=default_key, help=api_key_help)
+    elif default_key:
+        api_key_help += "．空欄のままならこの機械に設定済みのキー（ANTHROPIC_API_KEY）を使う"
+    # サーバ側のキーは value= に入れない（入れると閲覧者のブラウザへ送られる）
+    api_key = st.text_input("Anthropic APIキー", type="password", help=api_key_help)
+    # 共有キーがあるときは回数制限つきのそちらを優先する（公開運用での使い放題を防ぐ）
     use_shared = bool(shared_key and not api_key)
-    effective_key = shared_key if use_shared else api_key
+    effective_key = shared_key if use_shared else (api_key or default_key)
     effective_model = AI_MODEL_SHARED if use_shared else None
     effective_max_tokens = AI_MAX_TOKENS_SHARED if use_shared else None
     effective_attempts = 2 if use_shared else 3
@@ -1025,6 +1052,9 @@ with st.sidebar:
         if use_shared and st.session_state.get("shared_calls", 0) >= AI_SHARED_SESSION_LIMIT:
             st.error(f"検証用キーの今セッション上限（{AI_SHARED_SESSION_LIMIT}回）に達した．"
                      "ご自身のAnthropic APIキーを入力して継続してほしい．")
+        elif use_shared and _shared_used_today() >= AI_SHARED_DAILY_LIMIT:
+            st.error("検証用キーの本日の上限に達した．"
+                     "ご自身のAnthropic APIキーを入力して継続してほしい．")
         else:
             with st.spinner("仕様を生成・検証中…（エラーがあれば自動修正する）"):
                 try:
@@ -1034,6 +1064,7 @@ with st.sidebar:
                         model=effective_model, max_tokens=effective_max_tokens)
                     if use_shared:
                         st.session_state["shared_calls"] = st.session_state.get("shared_calls", 0) + 1
+                        _shared_count_up()
                     load_spec(new_spec)
                     st.session_state.ai_msg = (
                         "仕様を更新した（検証済み" + (f"・自動修正{attempts - 1}回" if attempts > 1 else "") + "）")
