@@ -140,4 +140,7 @@ StreamlitとoTreeは最新版同士では共存できない（starlette / websoc
   ローカル・研究室サーバ向け．Streamlit Community Cloudでは外部から届かない）．
   起動時に前回の孤児プロセス・一時ディレクトリを自動で片付ける
 - AI仕様生成（サイドバー）：日本語の指示で仕様を生成・修正．
+  モデルは既定で Claude Sonnet 5.5（共有キー時は Claude Haiku 5.5）．環境変数
+  `FORGE_AI_MODEL`／`FORGE_AI_MODEL_SHARED` で差し替え，`FORGE_AI_EFFORT`（既定 medium）で
+  考える深さを変えられる．
   生成結果は forge.validate で自動検証し，エラーはAIに差し戻して自動修正する（最大3回）

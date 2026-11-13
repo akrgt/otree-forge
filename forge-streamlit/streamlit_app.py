@@ -790,14 +790,19 @@ waitページに group_by_arrival_time: true を付けると到着順に players
 
 # ---------------------------------------------------------------- AI helpers
 
-# 環境変数 FORGE_AI_MODEL で差し替え可能（既定は最新のSonnet）
-AI_MODEL = os.environ.get("FORGE_AI_MODEL", "claude-sonnet-4-5")
+# 環境変数 FORGE_AI_MODEL で差し替え可能（既定は Claude Sonnet 5.5）
+AI_MODEL = os.environ.get("FORGE_AI_MODEL", "claude-sonnet-5-5")
 # 共有キー（検証用）使用時のモデル．コスト抑制のためHaikuを既定にする
-AI_MODEL_SHARED = os.environ.get("FORGE_AI_MODEL_SHARED", "claude-haiku-4-5")
-# 大きな仕様でもJSONが途中で切れないよう余裕を持たせる
-AI_MAX_TOKENS = 16000
+AI_MODEL_SHARED = os.environ.get("FORGE_AI_MODEL_SHARED", "claude-haiku-5-5")
+# 考える深さ（low/medium/high…）．Sonnet 5.5・Haiku 5.5 は思考が既定でオンで，
+# 深さは effort で決める．effort を受け付けない古いモデルに差し替えるときは
+# FORGE_AI_EFFORT を空文字にすると送らない
+AI_EFFORT = os.environ.get("FORGE_AI_EFFORT", "medium")
+# 思考の分も max_tokens に数えられるので，大きな仕様のJSONが途中で切れないよう
+# 余裕を持たせる
+AI_MAX_TOKENS = 24000
 # 共有キー使用時はトークン消費も抑える
-AI_MAX_TOKENS_SHARED = 8000
+AI_MAX_TOKENS_SHARED = 16000
 # 共有キー1セッションあたりのコール上限（BYOK時は無制限）
 AI_SHARED_SESSION_LIMIT = 5
 # 共有キーの1日あたりのコール上限（全利用者の合計）．セッション上限はページを
@@ -832,18 +837,40 @@ def _extract_json(text):
 
 
 def _call_claude(api_key, messages, model=None, max_tokens=None):
+    """Messages API を1回呼び，(本文テキスト, 応答のcontentブロック全体) を返す．
+
+    temperature 等のサンプリング指定は送らない（現行モデルは既定値以外を400で拒否する）．
+    content には thinking ブロックが含まれうる．会話を続けるときは，これを
+    手を加えずに assistant の発言として送り返す．
+    """
     import requests
+    body = {"model": model or AI_MODEL,
+            "max_tokens": max_tokens or AI_MAX_TOKENS,
+            "messages": messages}
+    if AI_EFFORT:
+        body["output_config"] = {"effort": AI_EFFORT}
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
         headers={"x-api-key": api_key, "anthropic-version": "2023-06-01",
                  "content-type": "application/json"},
-        json={"model": model or AI_MODEL,
-              "max_tokens": max_tokens or AI_MAX_TOKENS,
-              "temperature": 0, "messages": messages},
-        timeout=180,
+        json=body,
+        timeout=300,
     )
-    r.raise_for_status()
-    return "".join(b.get("text", "") for b in r.json()["content"] if b.get("type") == "text")
+    if r.status_code >= 400:
+        try:
+            detail = r.json().get("error", {}).get("message", "")
+        except ValueError:
+            detail = ""
+        raise RuntimeError(f"Anthropic API エラー（HTTP {r.status_code}）：{detail or r.reason}")
+    data = r.json()
+    stop = data.get("stop_reason")
+    if stop == "refusal":
+        raise RuntimeError("AIがこの依頼への応答を見送った（安全上の判定）．指示の書き方を変えて試してほしい")
+    if stop == "max_tokens":
+        raise RuntimeError("AIの出力が長すぎて途中で切れた．変更内容を小さく分けて指示してほしい")
+    content = data.get("content", [])
+    text = "".join(b.get("text", "") for b in content if b.get("type") == "text")
+    return text, content
 
 
 def ai_generate_spec(api_key, current_spec, instruction, max_attempts=3,
@@ -861,7 +888,7 @@ def ai_generate_spec(api_key, current_spec, instruction, max_attempts=3,
     messages = [{"role": "user", "content": prompt}]
     last_err = None
     for attempt in range(1, max_attempts + 1):
-        text = _call_claude(api_key, messages, model=model, max_tokens=max_tokens)
+        text, content = _call_claude(api_key, messages, model=model, max_tokens=max_tokens)
         try:
             new_spec = _extract_json(text)
             if new_spec.get("esl_version") != "0.1" or not new_spec.get("apps"):
@@ -876,7 +903,8 @@ def ai_generate_spec(api_key, current_spec, instruction, max_attempts=3,
         except (ValueError, KeyError, json.JSONDecodeError, forge.SpecError) as e:
             last_err = e
             messages += [
-                {"role": "assistant", "content": text},
+                # thinking ブロックも含め，応答をそのまま返す（削ったり書き換えたりしない）
+                {"role": "assistant", "content": content},
                 {"role": "user", "content":
                     f"出力した仕様に次の問題がある：\n{e}\n"
                     "全て修正した完全なESL仕様を，有効なJSONのみで再出力すること．"},
@@ -1056,15 +1084,16 @@ with st.sidebar:
             st.error("検証用キーの本日の上限に達した．"
                      "ご自身のAnthropic APIキーを入力して継続してほしい．")
         else:
+            if use_shared:
+                # 失敗しても費用はかかるので，成功時ではなく実行時に数える
+                st.session_state["shared_calls"] = st.session_state.get("shared_calls", 0) + 1
+                _shared_count_up()
             with st.spinner("仕様を生成・検証中…（エラーがあれば自動修正する）"):
                 try:
                     new_spec, attempts = ai_generate_spec(
                         effective_key, spec, ai_instr,
                         max_attempts=effective_attempts,
                         model=effective_model, max_tokens=effective_max_tokens)
-                    if use_shared:
-                        st.session_state["shared_calls"] = st.session_state.get("shared_calls", 0) + 1
-                        _shared_count_up()
                     load_spec(new_spec)
                     st.session_state.ai_msg = (
                         "仕様を更新した（検証済み" + (f"・自動修正{attempts - 1}回" if attempts > 1 else "") + "）")
